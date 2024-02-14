@@ -27,10 +27,12 @@ output application/json
 ---
 {
     contacts: payload.contacts filter ((contact) -> {
-        allOf(attributes.queryParams mapObject ((value, key, index) -> contact[key] == value))
+        allOf(attributes.queryParams map ((value, key) -> contact[key] == value))
     })[0..1]
 }]]></ee:set-payload>
             </ee:message>
         </ee:transform>
+
+        <logger level="INFO" doc:name="Logger" message="#[payload]" />
     </flow>
 </mule>
