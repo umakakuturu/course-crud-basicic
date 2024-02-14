@@ -1,4 +1,4 @@
-public void filterContacts(ContactConfig config, CompletionCallback callback, String inputString) {
+public void filterContacts(ContactConfig config, CompletionCallback<List<Map<String, String>>> callback, String inputString) {
     List<Map<String, String>> contacts = config.getContacts().stream()
             .filter(contact -> {
                 boolean match = false;
