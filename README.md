@@ -1,4 +1,4 @@
-public void filterContacts(ContactConfig config, CompletionCallback<List<Map<String, String>>> callback, String inputString) {
+public void filterContacts(ContactConfig config, CompletionCallback<Void, Void> callback, String inputString) {
     List<Map<String, String>> contacts = config.getContacts().stream()
             .filter(contact -> {
                 boolean match = false;
@@ -12,5 +12,6 @@ public void filterContacts(ContactConfig config, CompletionCallback<List<Map<Str
             })
             .collect(Collectors.toList());
 
-    callback.success(contacts);
+    Result<List<Map<String, String>>, Void> result = Result.<List<Map<String, String>>, Void>builder().output(contacts).build();
+    callback.success(result);
 }
