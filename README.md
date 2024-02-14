@@ -5,7 +5,13 @@ output application/json
 ---
 {
     "contacts": (payload.contacts filter ((contact) -> {
-        allOf(vars.queryParam mapObject ((value, key, index) -> contact[key] contains value))
+        not isEmpty(vars.queryParam) and
+        (
+            (vars.queryParam contains contact.firstName) or
+            (vars.queryParam contains contact.lastName) or
+            (vars.queryParam contains contact.role) or
+            (vars.queryParam contains contact.id)
+        )
     }))[0..1]
 }]]></ee:set-payload>
     </ee:message>
