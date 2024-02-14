@@ -1,33 +1,30 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
-    xmlns="http://www.mulesoft.org/schema/mule/core"
-    xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+package com.example.demomodule;
 
-    <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config">
-        <http:listener-connection host="0.0.0.0" port="8081" />
-    </http:listener-config>
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-    <file:config name="File_Config" doc:name="File Config" doc:id="226f4429-12d7-49c4-bec3-565e600d61eb" >
-        <file:connection workingDir="src/main/resources" />
-    </file:config>
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-    <flow name="demomoduleFlow">
-        <http:listener doc:name="Listener" config-ref="HTTP_Listener_config" path="/mulesoft" allowedMethods="GET">
-            <http:query-params-to-map />
-        </http:listener>
-        <set-variable value="#[attributes.queryParams.filter]" doc:name="Set Variable" variableName="filter" />
-        <file:read doc:name="Read Contacts JSON" config-ref="File_Config" path="contacts.json" />
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-(payload as Object).contacts filter ($.firstName contains vars.filter or $.lastName contains vars.filter or $.role contains vars.filter or $.id contains vars.filter)]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
-    </flow>
+public class ContactUtils {
 
-</mule>
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    public static List<Contact> filterContacts(String filter) throws IOException {
+        InputStream inputStream = ContactUtils.class.getResourceAsStream("/contacts.json");
+        List<Contact> contacts = Arrays.asList(mapper.readValue(inputStream, Contact[].class));
+
+        List<Contact> filteredContacts = new ArrayList<>();
+        for (Contact contact : contacts) {
+            if (contact.getFirstName().contains(filter) ||
+                contact.getLastName().contains(filter) ||
+                contact.getRole().contains(filter) ||
+                contact.getId().contains(filter)) {
+                filteredContacts.add(contact);
+            }
+        }
+        return filteredContacts;
+    }
+}
