@@ -1,66 +1,49 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
-    xmlns:http="http://www.mulesoft.org/schema/mule/http"
-    xmlns="http://www.mulesoft.org/schema/mule/core"
-    xmlns:json="http://www.mulesoft.org/schema/mule/json"
-    xmlns:file="http://www.mulesoft.org/schema/mule/file"
-    xmlns:dw="http://www.mulesoft.org/schema/mule/dataweave"
-    xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
-        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
-        http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
-        http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
-        http://www.mulesoft.org/schema/mule/dataweave http://www.mulesoft.org/schema/mule/dataweave/current/mule-dataweave.xsd"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+public class Contact {
+    private String firstName;
+    private String lastName;
+    private String emailAddress;
+    private String phoneNumber;
+    private String role;
+    private String id;
 
-    <http:listener-config name="GetContactsListenerConfig">
-        <http:listener-connection host="0.0.0.0" port="8080" />
+    // Getters and setters
+}
+=========
+import org.mule.runtime.extension.api.annotation.param.Parameter;
+
+public class ContactFilter {
+
+    @Parameter
+    private String filter;
+
+    // Getter and setter
+}
+===
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+    xmlns="http://www.mulesoft.org/schema/mule/core"
+    xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+    <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="f4291697-9176-40c1">
+        <http:listener-connection host="0.0.0.0" port="8081" />
     </http:listener-config>
 
-    <flow name="filterContactsFlow">
-        <http:listener name="ContactFilterListener"
-             config-ref="GetContactsListenerConfig"
-             path="/getContacts"
-             allowedMethods="GET" />
-
-        <file:read name="LoadContactsJson"
-                 path="classpath:contacts.json"
-                 result="inputJson" />
-
-        <ee:transform name="FilterContactsTransform" doc:name="Filter Contacts">
+    <flow name="demomoduleFlow" doc:id="2ad4aafe-28bb-4d17">
+        <http:listener doc:name="Listener" doc:id="3301a193-318b-4a48" config-ref="HTTP_Listener_config" path="/mulesoft" allowedMethods="GET">
+            <http:query-params-to-map />
+        </http:listener>
+        <set-variable value="#[attributes.queryParams.filter]" doc:name="Set Variable" doc:id="f1d97348-b681-420e-a859" variableName="filter" />
+        <ee:transform doc:name="Transform Message" doc:id="d3e38b02-4d68-4be4-b13a-f6ee6516ec21">
             <ee:message>
-                <dw:set-payload>
-                    <![CDATA[
-                    %dw 2.0
-                    input payload => payload.contacts filter ((contact) -> {
-                        var searchTerm = attributes.queryParams.searchTerm;
-                        var lowerCaseSearchTerm = searchTerm.toLowerCase();
-                        for (var key in contact) {
-                            if (key != "id" && contact[key].toString().toLowerCase().contains(lowerCaseSearchTerm)) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    })
-                    ]]]
-                </dw:set-payload>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload.contacts filter ($.firstName contains vars.filter or $.lastName contains vars.filter or $.role contains vars.filter or $.id contains vars.filter)]]></ee:set-payload>
             </ee:message>
         </ee:transform>
-
-        <json:write name="WriteFilteredContactsJson"
-                   result="filteredContactsJson"
-                   path="classpath:filtered-contacts.json"
-                   dataFormat="application/json" />
-
-        <http:outbound-endpoint exchange-pattern="responder">
-            <message:transformer ref="filteredContactsJsonTransformer" />
-        </http:outbound-endpoint>
-
-        <logger message="#{payload}" level="INFO" />
     </flow>
-
-    <message-processor:transformer name="filteredContactsJsonTransformer">
-        <message:transform expression="#[payload]" mimeType="application/json" />
-    </message-processor:transformer>
 
 </mule>
