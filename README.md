@@ -10,7 +10,9 @@ output application/json
             (vars.queryParam contains contact.firstName) or
             (vars.queryParam contains contact.lastName) or
             (vars.queryParam contains contact.role) or
-            (vars.queryParam contains contact.id)
+            (vars.queryParam contains contact.id) or
+            (vars.queryParam contains contact.emailAddress) or
+            (vars.queryParam contains contact.phoneNumber)
         )
     }))[0..1]
 }]]></ee:set-payload>
