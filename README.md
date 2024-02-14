@@ -7,12 +7,12 @@ output application/json
     "contacts": (payload.contacts filter ((contact) -> {
         not isEmpty(vars.queryParam) and
         (
-            (vars.queryParam contains contact.firstName) or
-            (vars.queryParam contains contact.lastName) or
-            (vars.queryParam contains contact.role) or
-            (vars.queryParam contains contact.id) or
-            (vars.queryParam contains contact.emailAddress) or
-            (vars.queryParam contains contact.phoneNumber)
+            (contact.firstName contains vars.queryParam) or
+            (contact.lastName contains vars.queryParam) or
+            (contact.role contains vars.queryParam) or
+            (contact.id contains vars.queryParam) or
+            (contact.emailAddress contains vars.queryParam) or
+            (contact.phoneNumber contains vars.queryParam)
         )
     }))[0..1]
 }]]></ee:set-payload>
