@@ -21,14 +21,14 @@
         <file:read doc:name="Read contacts JSON" path="classpath:contacts.json" config-ref="File_Config" />
 
         <ee:transform doc:name="Transform Message">
-            <ee:message >
-                <ee:set-payload ><![CDATA[%dw 2.0
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
-    "contacts": (payload.contacts filter ((contact) -> {
+    contacts: payload.contacts filter ((contact) -> {
         allOf(attributes.queryParams mapObject ((value, key, index) -> contact[key] == value))
-    }))[0..1]
+    })[0..1]
 }]]></ee:set-payload>
             </ee:message>
         </ee:transform>
