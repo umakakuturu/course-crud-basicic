@@ -10,7 +10,7 @@ output application/json
             (contact.firstName contains vars.queryParam) or
             (contact.lastName contains vars.queryParam) or
             (contact.role contains vars.queryParam) or
-            (contact.id contains vars.queryParam) or
+            (string(contact.id) contains vars.queryParam) or
             (contact.emailAddress contains vars.queryParam) or
             (contact.phoneNumber contains vars.queryParam)
         )
