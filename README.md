@@ -1,126 +1,123 @@
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.okta.sdk.resource.client.ApiClient;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.okta.sdk.resource.client.ApiClient;
+import com.okta.sdk.resource.client.ApiClient;
+import com.okta.sdk.resource.client.ApiClient;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+@ExtendWith(MockitoExtension.class)
+public class ActiveUserServiceImplTest {
 
-import static com.bcbsm.mex.auth.constants.OktaConstants.JTI_CLAIM_NAME;
+    @Mock
+    private ApiClient okatAuthClient;
 
-@Service
-@RequiredArgsConstructor
-public class ActiveUserServiceImpl implements ActiveUserService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ActiveUserServiceImpl.class);
-    @Value("${services.okta.member.token.domain}")
-    private String oktaAddress;
-    @Value("${services.okta.member.token.clientId}")
-    private String oktaClientId;
-    @Value("${services.okta.member.token.clientSecret}")
-    private String oktaClientSecret;
-    @Value("${services.okta.member.token.audience}")
-    private String oktaTenantAudience;
-    @Value("${services.okta.member.token.path}")
-    private String oktaPath;
-    private final ApiClient okatAuthClient;
-    private final ActiveUserRepository activeUserRepository;
-    private final OktaService oktaService;
+    @Mock
+    private ActiveUserRepository activeUserRepository;
 
-    @Override
-    public ActiveUser createAndCacheActiveUser(String subjectToken) {
-        Optional<Jwt> jwt = Optional.of(SecurityContextHolder.getContext().getAuthentication())
-                .map(auth -> (Jwt) auth.getCredentials());
-        String jti = jwt.map(Jwt::getClaims).map(claim -> (String) claim.get(JTI_CLAIM_NAME)).orElse(null);
+    @Mock
+    private OktaService oktaService;
 
-        //toDO: need to get this info from Membership service
-        /*
-        SearchCriteria allAccessibleMembershipCriteria = new SearchCriteria();
-        allAccessibleMembershipCriteria.addFiltersItem(new Filters().name("type").operator("EQUALS").value("AUTHORIZATION_METADATA_POPULATOR"));
-        MembershipResponse membershipResponse = this.membershipApi.getAllAccessibleMemberships(Long.valueOf(123), allAccessibleMembershipCriteria).block();
-        */
+    @InjectMocks
+    private ActiveUserServiceImpl activeUserService;
 
-        List<String> newScopes = Collections.emptyList();
-        Map<String, String> headerParams = new HashMap<>();
+    @Test
+    public void testCreateAndCacheActiveUser() {
+        // Mocking
+        String subjectToken = "subjectToken";
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getClaims()).thenReturn(Collections.singletonMap(OktaConstants.JTI_CLAIM_NAME, "someJti"));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(jwt, ""));
 
-        OktaTokenRequest exchangeRequest = OktaTokenRequest.builder()
-                .grant_type("urn:ietf:params:oauth:grant-type:token-exchange")
-                .subject_token_type("urn:ietf:params:oauth:token-type:access_token")
-                .subject_token(subjectToken)
-                .scopes(newScopes)
-                .audience(oktaTenantAudience)
-                .client_id(oktaClientId)
-                .client_secret(oktaClientSecret)
-                .build();
+        OktaTokenResponse oktaTokenResponse = new OktaTokenResponse("accessToken");
+        when(okatAuthClient.invokeAPI(anyString(), anyString(), anyList(), anyList(), anyString(), any(), anyMap(), anyMap(), anyMap(), anyString(), anyString(), any(), any())).thenReturn(oktaTokenResponse);
 
-        OktaTokenResponse oktaTokenResponse = okatAuthClient.invokeAPI("/oauth2/auseizln69ZQfjd2v5d7/v1/token",
-                "POST",
-                Collections.emptyList(),
-                Collections.emptyList(),
-                "",
-                exchangeRequest,
-                headerParams,
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                "",
-                "application/x-www-form-urlencoded",
-                new String[0],
-                new TypeReference<OktaTokenResponse>() {
-                });
+        // Test
+        ActiveUser activeUser = activeUserService.createAndCacheActiveUser(subjectToken);
 
-        LOGGER.info("Exchanging token for current principal {} and jti {}", jwt.get().getSubject(), jti);
-
-        ActiveUser activeUser = ActiveUser.builder()
-                .jti(jti)
-                .exchangedToken(oktaTokenResponse.getAccessToken())
-                .isImpersonated(true)
-                .tier("tier_2")
-                .personid("901234567890")
-                .firstname("User2")
-                .deviceInfo("POSTMAN")
-                .build();
-
-        return activeUserRepository.save(activeUser);
+        // Assertions
+        assertNotNull(activeUser);
+        assertEquals("someJti", activeUser.getJti());
+        assertEquals("accessToken", activeUser.getExchangedToken());
+        assertTrue(activeUser.isImpersonated());
     }
 
-    @Override
-    public ActiveUser createAndCacheActiveUserKey(String subjectToken, String userName) {
+    @Test
+    public void testCreateAndCacheActiveUserKey() {
+        // Mocking
+        String subjectToken = "subjectToken";
+        String userName = "userName";
         UserAuthModel userRequest = new UserAuthModel();
-        userRequest.setUserName(Collections.singletonList(userName));
-        FindUsersResponse userResp = (FindUsersResponse) oktaService.execute(userRequest);
-        User user = userResp.getPayload().get(0);
-        ActiveUser activeUser = ActiveUser.builder()
-                .jti(subjectToken)
-                .isImpersonated(false)
-                .tier("")
-                .personid(user.getEnterpriseId().toString())
-                .firstname(user.getUserName())
-                .deviceInfo("IVR")
-                .build();
-        LOGGER.info("Cached active user for current token {}", subjectToken);
-        return activeUserRepository.save(activeUser);
+        FindUsersResponse userResp = new FindUsersResponse(Collections.singletonList(new User()));
+
+        when(oktaService.execute(userRequest)).thenReturn(userResp);
+
+        // Test
+        ActiveUser activeUser = activeUserService.createAndCacheActiveUserKey(subjectToken, userName);
+
+        // Assertions
+        assertNotNull(activeUser);
+        assertEquals(subjectToken, activeUser.getJti());
+        assertFalse(activeUser.isImpersonated());
+        assertEquals("", activeUser.getTier());
+        assertEquals("901234567890", activeUser.getPersonid());
+        assertEquals(userName, activeUser.getFirstname());
+        assertEquals("IVR", activeUser.getDeviceInfo());
     }
 
-    @Override
-    public Optional<ActiveUser> findById(String id) {
-        return activeUserRepository.findById(id);
+    @Test
+    public void testFindById() {
+        // Mocking
+        String id = "id";
+        ActiveUser activeUser = new ActiveUser();
+        when(activeUserRepository.findById(id)).thenReturn(Optional.of(activeUser));
+
+        // Test
+        Optional<ActiveUser> result = activeUserService.findById(id);
+
+        // Assertions
+        assertTrue(result.isPresent());
+        assertEquals(activeUser, result.get());
     }
 
-    @Override
-    public String findByPersonId(String personId) {
-        return activeUserRepository.findAllByPersonid(personId).toString();
+    @Test
+    public void testFindByPersonId() {
+        // Mocking
+        String personId = "personId";
+        ActiveUser activeUser = new ActiveUser();
+        when(activeUserRepository.findAllByPersonid(personId)).thenReturn(Collections.singletonList(activeUser));
+
+        // Test
+        String result = activeUserService.findByPersonId(personId);
+
+        // Assertions
+        assertEquals(Collections.singletonList(activeUser).toString(), result);
     }
 
-    @Override
-    public String findByUserNameAndTier(String userName, String tier) {
-        return activeUserRepository.findByFirstnameAndTier(userName, tier).toString();
+    @Test
+    public void testFindByUserNameAndTier() {
+        // Mocking
+        String userName = "userName";
+        String tier = "tier";
+        ActiveUser activeUser = new ActiveUser();
+        when(activeUserRepository.findByFirstnameAndTier(userName, tier)).thenReturn(Collections.singletonList(activeUser));
+
+        // Test
+        String result = activeUserService.findByUserNameAndTier(userName, tier);
+
+        // Assertions
+        assertEquals(Collections.singletonList(activeUser).toString(), result);
     }
 }
