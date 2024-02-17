@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.commons.collections4.MapUtils.getString;
 
@@ -21,41 +22,33 @@ public class CmsDocumentParserStrategy extends AbstractCmsContentParserStrategy 
     private static final String TEMPLATE = "<a href=\"%s\" target=\"_blank\">%s</a>";
 
     @PostConstruct
-    public void init(){
+    public void init() {
         setTagName("doc");
     }
 
     @Override
     public String processTag(String apiType, Map<String, String> params) {
-        String mainTagValue = params.get(getTagName());
-        Boolean switchContext = params.containsKey(SWITCH_CONTEXT) && params.get(SWITCH_CONTEXT).equals("true");
-        Boolean isRelativePath = params.containsKey(RELATIVE_PATH) && params.get(RELATIVE_PATH).equals("true");
+        return Optional.ofNullable(params.get(getTagName()))
+                .map(mainTagValue -> {
+                    boolean switchContext = Boolean.parseBoolean(params.getOrDefault(SWITCH_CONTEXT, "false"));
+                    boolean isRelativePath = Boolean.parseBoolean(params.getOrDefault(RELATIVE_PATH, "false"));
 
-        if (null != mainTagValue) {
-            Map<String, Object> content = getContentManagementService().getFileContentObject(apiType, mainTagValue);
-            if (null != content) {
-                return makeMarkupForDocument( params, mainTagValue, content, switchContext, isRelativePath);
-            }
-        } else if( targetedNameExists( params, PATH ) ) {
-            return getUrlForDocument( getString( params, makeTargetedTagName(PATH)), switchContext, isRelativePath);
-        }
-
-        return null;
+                    return Optional.ofNullable(getContentManagementService().getFileContentObject(apiType, mainTagValue))
+                            .map(content -> makeMarkupForDocument(params, mainTagValue, content, switchContext, isRelativePath))
+                            .orElse(null);
+                })
+                .orElseGet(() -> Optional.ofNullable(getString(params, makeTargetedTagName(PATH)))
+                        .map(path -> getUrlForDocument(path, Boolean.parseBoolean(params.getOrDefault(SWITCH_CONTEXT, "false")), Boolean.parseBoolean(params.getOrDefault(RELATIVE_PATH, "false"))))
+                        .orElse(null));
     }
 
-    private String makeMarkupForDocument( Map<String,String> params, String documentId, Map<String, Object> content, Boolean switchContext, Boolean isRelativePath) {
+    private String makeMarkupForDocument(Map<String, String> params, String documentId, Map<String, Object> content, boolean switchContext, boolean isRelativePath) {
         String displayName = getDisplayName(params, content);
         String url = getUrlForDocument(documentId, switchContext, isRelativePath);
         return String.format(TEMPLATE, url, displayName);
     }
 
-    private String getDisplayName( Map<String,String> params, Map<String,Object> content ) {
-        String displayName = getString( params, DISPLAY_NAME );
-        if( StringUtils.isEmpty(displayName) ) {
-            displayName = getString( content, DISPLAY_NAME );
-        }
-
-        return displayName;
+    private String getDisplayName(Map<String, String> params, Map<String, Object> content) {
+        return StringUtils.isEmpty(getString(params, DISPLAY_NAME)) ? getString(content, DISPLAY_NAME) : getString(params, DISPLAY_NAME);
     }
-
 }
