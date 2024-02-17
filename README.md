@@ -1,76 +1,61 @@
-package com.bcbsm.mbp.cms.config;
+package com.bcbsm.mbp.cms.parser.impl;
 
-import com.bcbsm.mbp.cms.model.jaxb.appconfig.EntryType;
-import com.bcbsm.mbp.cms.constants.Constants;
-import feign.codec.Decoder;
-import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
-import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
-import org.springframework.cloud.openfeign.FeignClientsConfiguration;
-import org.springframework.cloud.openfeign.support.SpringDecoder;
-import org.springframework.context.MessageSource;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.context.support.ResourceBundleMessageSource;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.web.context.WebApplicationContext;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.apache.cxf.common.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
+import javax.annotation.PostConstruct;
 import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.CompletableFuture;
 
-@Configuration
-@EnableWebMvc
-@Import(FeignClientsConfiguration.class)
-public class CmsConfig {
+import static org.apache.commons.collections4.MapUtils.getString;
 
-    @Bean(name = Constants.APP_PROPERTIES)
-    public Properties yamlProperties() {
-        YamlPropertiesFactoryBean bean = new YamlPropertiesFactoryBean();
-        bean.setResources(new ClassPathResource(Constants.VALIDATION_MESSAGES_YAML));
-        return bean.getObject();
+@Component
+public class CmsDocumentParserStrategy extends AbstractCmsContentParserStrategy {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CmsDocumentParserStrategy.class);
+
+    private static final String PATH = "path";
+    private static final String SWITCH_CONTEXT = "email";
+    private static final String RELATIVE_PATH = "relative-path";
+    private static final String DISPLAY_NAME = "title";
+    private static final String TEMPLATE = "<a href=\"%s\" target=\"_blank\">%s</a>";
+
+    @PostConstruct
+    public void init(){
+        setTagName("doc");
     }
 
-    @Bean
-    public MessageSource messageSource() throws IOException {
-        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
-        messageSource.setCommonMessages(yamlProperties());
-        messageSource.setDefaultEncoding(Constants.UTF_8);
-        return messageSource;
+    @Override
+    public String processTag(String apiType, Map<String, String> params) {
+        String mainTagValue = params.get(getTagName());
+        Boolean switchContext = params.containsKey(SWITCH_CONTEXT) && params.get(SWITCH_CONTEXT).equals("true");
+        Boolean isRelativePath = params.containsKey(RELATIVE_PATH) && params.get(RELATIVE_PATH).equals("true");
+
+        if (null != mainTagValue) {
+            Map<String, Object> content = getContentManagementService().getFileContentObject(apiType, mainTagValue);
+            if (null != content) {
+                return makeMarkupForDocument( params, mainTagValue, content, switchContext, isRelativePath);
+            }
+        } else if( targetedNameExists( params, PATH ) ) {
+            return getUrlForDocument( getString( params, makeTargetedTagName(PATH)), switchContext, isRelativePath);
+        }
+
+        return null;
     }
 
-    @Bean
-    public Decoder decoder() {
-        return new SpringDecoder(HttpMessageConverters::new);
+    private String makeMarkupForDocument( Map<String,String> params, String documentId, Map<String, Object> content, Boolean switchContext, Boolean isRelativePath) {
+        String displayName = getDisplayName(params, content);
+        String url = getUrlForDocument(documentId, switchContext, isRelativePath);
+        return String.format(TEMPLATE, url, displayName);
     }
 
-    @Bean
-    public RedisCacheConfiguration cacheConfiguration() {
-        return RedisCacheConfiguration
-                .defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(60))
-                .serializeValuesWith(RedisSerializationContext
-                        .SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
+    private String getDisplayName( Map<String,String> params, Map<String,Object> content ) {
+        String displayName = getString( params, DISPLAY_NAME );
+        if( StringUtils.isEmpty(displayName) ) {
+            displayName = getString( content, DISPLAY_NAME );
+        }
+
+        return displayName;
     }
 
-    @Async
-    @Bean
-    @Scope(value = WebApplicationContext.SCOPE_SESSION,
-            proxyMode = ScopedProxyMode.TARGET_CLASS)
-    public CompletableFuture<Map<String, List<EntryType>>> entryTypeMap() {
-        return CompletableFuture.completedFuture(new HashMap<>());
-    }
 }
-
