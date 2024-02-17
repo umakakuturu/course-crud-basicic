@@ -1,54 +1,66 @@
-package com.bcbsm.mbp.cms.parser.impl;
+  public String processTag(String apiType, Map<String, String> params) {
+        LOGGER.trace("params: {}", params);
+        String mainTagValue = params.get(getTagName());
+        LOGGER.trace("mainTagValue: {}", mainTagValue);
+        Boolean switchContext = params.containsKey(SWITCH_CONTEXT) && params.get(SWITCH_CONTEXT).equals("true");
+        LOGGER.trace("switchContext: {}", switchContext);
+        Boolean isRelativePath = params.containsKey(RELATIVE_PATH) && params.get(RELATIVE_PATH).equals("true");
+        LOGGER.trace("relativePath: {}", isRelativePath);
 
-import org.apache.cxf.common.util.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import java.util.Map;
-import java.util.Optional;
+        if (null != mainTagValue) {
+            Map<String, Object> contentObject = getContentManagementService().getImageContentObject(apiType, mainTagValue);
+            return buildMarkupFromContent(contentObject, mainTagValue, switchContext, isRelativePath);
+        } else if (targetedNameExists(params, PATH)) {
+            return getUrlForDocument(getString(params, makeTargetedTagName(PATH)), switchContext, isRelativePath);
+        }
 
-import static org.apache.commons.collections4.MapUtils.getString;
-
-@Component
-public class CmsDocumentParserStrategy extends AbstractCmsContentParserStrategy {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CmsDocumentParserStrategy.class);
-
-    private static final String PATH = "path";
-    private static final String SWITCH_CONTEXT = "email";
-    private static final String RELATIVE_PATH = "relative-path";
-    private static final String DISPLAY_NAME = "title";
-    private static final String TEMPLATE = "<a href=\"%s\" target=\"_blank\">%s</a>";
-
-    @PostConstruct
-    public void init() {
-        setTagName("doc");
+        return null;
     }
 
-    @Override
-    public String processTag(String apiType, Map<String, String> params) {
-        return Optional.ofNullable(params.get(getTagName()))
-                .map(mainTagValue -> {
-                    boolean switchContext = Boolean.parseBoolean(params.getOrDefault(SWITCH_CONTEXT, "false"));
-                    boolean isRelativePath = Boolean.parseBoolean(params.getOrDefault(RELATIVE_PATH, "false"));
+    /**
+     * WARNING: Scope is intentionally increased to protected only to facilitate testing. This method is not meant to be called
+     * outside of this class.
+     */
+    protected String buildMarkupFromContent(Map<String, Object> contentObject, String mainTagValue, Boolean switchContext, Boolean isRelativePath) {
+        LOGGER.trace("contentObject: {}", contentObject);
+        if (isNotEmpty(contentObject)) {
+            String description = getString(contentObject, DESCRIPTION);
+            if (description == null) {
+                description = "";
+            }
+            LOGGER.trace("description: {}", description);
 
-                    return Optional.ofNullable(getContentManagementService().getFileContentObject(apiType, mainTagValue))
-                            .map(content -> makeMarkupForDocument(params, mainTagValue, content, switchContext, isRelativePath))
-                            .orElse(null);
-                })
-                .orElseGet(() -> Optional.ofNullable(getString(params, makeTargetedTagName(PATH)))
-                        .map(path -> getUrlForDocument(path, Boolean.parseBoolean(params.getOrDefault(SWITCH_CONTEXT, "false")), Boolean.parseBoolean(params.getOrDefault(RELATIVE_PATH, "false"))))
-                        .orElse(null));
+            Map<String, String> mainContentObj = (Map<String, String>) getMap(contentObject, CONTENT_KEY);
+            LOGGER.trace("mainContentObj: {}", mainContentObj);
+            String cssClasses = getString(mainContentObj, "classes");
+            LOGGER.trace("cssClasses: {}", cssClasses);
+
+            return buildImageMarkup(mainTagValue, description, cssClasses, switchContext, isRelativePath);
+        }
+
+        return null;
     }
 
-    private String makeMarkupForDocument(Map<String, String> params, String documentId, Map<String, Object> content, boolean switchContext, boolean isRelativePath) {
-        String displayName = getDisplayName(params, content);
-        String url = getUrlForDocument(documentId, switchContext, isRelativePath);
-        return String.format(TEMPLATE, url, displayName);
+    /**
+     * WARNING: Scope is intentionally increased to protected only to facilitate testing. This method is not meant to be called
+     * outside of this class.
+     */
+    protected String buildImageMarkup(String mainTagValue, String description, String cssClasses, Boolean switchContext, Boolean isRelativePath) {
+        LOGGER.trace("mainTagValue: {}", mainTagValue);
+        LOGGER.trace("description: {}", description);
+        LOGGER.trace("cssClasses: {}", cssClasses);
+        String path = getUrlForDocument(mainTagValue, switchContext, isRelativePath);
+        LOGGER.trace("path: {}", path);
+
+        String markup;
+        if (null != cssClasses) {
+            markup = String.format(CSS_TEMPLATE, path, description, cssClasses);
+        } else {
+            markup = String.format(TEMPLATE, path, description);
+        }
+        LOGGER.trace("markup: {}", markup);
+        return markup;
     }
 
-    private String getDisplayName(Map<String, String> params, Map<String, Object> content) {
-        return StringUtils.isEmpty(getString(params, DISPLAY_NAME)) ? getString(content, DISPLAY_NAME) : getString(params, DISPLAY_NAME);
-    }
 }
