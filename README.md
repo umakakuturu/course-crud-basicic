@@ -1,40 +1,37 @@
-@FeignClient(name = "personService", url = "${person.service.url}") // Name should match the service name in FeignClient
+import com.bcbsm.mbp.cms.model.Person;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name = "personClient", url = "${person.service.url}")
 public interface PersonClient {
 
-    @RequestLine("GET /persons/{personId}") // Define the GET request to retrieve a person by ID
-    Person getPersonById(URI url); // The URI will be constructed based on the personId
+    @GetMapping("/api/persons/{personId}")
+    Person getPersonById(@PathVariable("personId") Long personId);
 }
-
-===
-package com.bcbsm.mbp.other.service;
-
+=============
 import com.bcbsm.mbp.cms.client.PersonClient;
 import com.bcbsm.mbp.cms.model.Person;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.net.URI;
-import java.net.URISyntaxException;
 
 @Service
-public class OtherService {
+public class YourService {
 
     private final PersonClient personClient;
 
     @Autowired
-    public OtherService(PersonClient personClient) {
+    public YourService(PersonClient personClient) {
         this.personClient = personClient;
     }
 
     public Person getPersonById(Long personId) {
         try {
-            // Construct the URI for the getPersonById endpoint with the personId
-            URI personUrl = new URI("/persons/" + personId);
-
-            // Invoke the Feign client to retrieve the Person object
-            return personClient.getPersonById(personUrl);
-        } catch (URISyntaxException e) {
-            // Handle URI syntax exception (e.g., invalid URI)
-            throw new IllegalArgumentException("Invalid person URL", e);
+            // Invoke the Feign client to retrieve the Person by personId
+            return personClient.getPersonById(personId);
+        } catch (Exception e) {
+            // Handle exception (e.g., FeignClientException, RuntimeException)
+            throw new RuntimeException("Error retrieving person from remote service", e);
         }
     }
 }
